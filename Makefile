@@ -7,6 +7,9 @@ IMAGES = $(patsubst images/%/,%,$(wildcard images/*/))
 
 .PHONY: $(IMAGES)
 
+all:
+	@echo 'Available images: $(IMAGES)'
+
 $(IMAGES):
 	docker build $(BUILD_FLAGS) -t $(REPO_TAG)/$@ images/$@
 
