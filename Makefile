@@ -12,6 +12,3 @@ all:
 
 $(IMAGES):
 	docker build $(BUILD_FLAGS) -t $(REPO_TAG)/$@ images/$@
-
-clean:
-	docker rmi $(REPO_TAG)/$(IMAGES)
