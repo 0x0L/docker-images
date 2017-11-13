@@ -2,15 +2,15 @@ FROM debian:9
 
 MAINTAINER 0x0L <0x0L@github.com>
 
-ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
-
-RUN apt-get update; apt-get dist-upgrade -y \
- && apt-get install -y \
+RUN export DEBIAN_FRONTEND=noninteractive \
+ && apt-get update -yqq; apt-get dist-upgrade -yqq \
+ && echo "en_US.UTF-8 UTF-8" > /etc/locale.gen \
+ && apt-get install -yqq \
       ack \
       build-essential bzip2 \
       ca-certificates \
       git graphviz \
-      libglib2.0-0 libsm6 libxext6 libxrender1 \
+      libglib2.0-0 libsm6 libxext6 libxrender1 locales \
       neovim \
       procps \
       tmux \
@@ -18,7 +18,12 @@ RUN apt-get update; apt-get dist-upgrade -y \
       unzip \
       wget \
       xclip \
- && apt-get clean; apt-get autoclean
+      > /dev/null \
+ && apt-get clean -yqq; apt-get autoclean -yqq \
+ && update-locale LANG=en_US.UTF-8
+ # && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 ENV PATH /opt/conda/bin:$PATH
 
@@ -37,8 +42,9 @@ RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
  && conda config --system --set show_channel_urls true \
  && conda config --system --set auto_update_conda false
 
-RUN conda update --all --yes \
- && conda install \
+### CONDA PACKAGES
+RUN conda update -yq --all \
+ && conda install -yq \
       alembic \
       beautifulsoup4 boto bottleneck \
       cmake cython \
@@ -55,38 +61,39 @@ RUN conda update --all --yes \
       theano tqdm \
       uvloop \
       xarray xlrd xlsxwriter xlwt \
- && conda install -c conda-forge \
+ && conda install -yq -c conda-forge \
       ipympl \
       jupyterhub jupyterlab \
       netcdf4 \
- && conda clean -ay
+ && conda clean -ay > /dev/null
 
+### PIP PACKAGES
 RUN export CVXOPT_BLAS_EXTRA_LINK_ARGS="-L/opt/conda/lib;-Wl,-rpath,/opt/conda/lib,--no-as-needed;-lmkl_rt;-lpthread;-lm;-ldl" \
  && export CVXOPT_BLAS_LIB=mkl_rt CVXOPT_LAPACK_LIB=mkl_rt \
  && wget --quiet http://faculty.cse.tamu.edu/davis/SuiteSparse/SuiteSparse-4.5.6.tar.gz \
  && tar -xf SuiteSparse-4.5.6.tar.gz \
  && export CVXOPT_SUITESPARSE_SRC_DIR=/tmp/SuiteSparse \
- && pip install --no-cache-dir cvxopt --no-binary cvxopt \
+ && pip install -q --no-cache-dir cvxopt --no-binary cvxopt \
  && rm -fr /tmp/*
 
-RUN git clone --recursive https://github.com/dmlc/xgboost \
- && cd xgboost; make -j4; make pypack; cd .. \
- && pip install --no-cache-dir ./xgboost/python-package \
+RUN git clone -q --recursive https://github.com/dmlc/xgboost \
+ && cd xgboost; make -s -j4 ADD_CFLAGS=-Wno-sign-compare \
+ && make -s pypack; cd .. \
+ && pip install -q --no-cache-dir ./xgboost/python-package \
  && rm -fr /tmp/*
 
-RUN pip install --no-cache-dir --no-binary :all: lightgbm
+RUN pip install -q --no-cache-dir --no-binary :all: lightgbm
 
 # On import tensorflow 1.4 produces a warning
 # See https://github.com/tensorflow/tensorflow/issues/14182
 #
 # Tensorboard pip package downgrades bleach from 2.0 to 1.5
-# (and html5lib accordingly). As only nbconvert depends on this,
-# it should not be too much of an issue.
+# (and html5lib accordingly). Only nbconvert depends on this.
 # See https://github.com/tensorflow/tensorboard/issues/607
-RUN pip install --no-cache-dir \
+RUN pip install -q --no-cache-dir \
       https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl
 
-RUN pip install --no-cache-dir \
+RUN pip install -q --no-cache-dir \
       arch \
       catboost \
       deap \
@@ -102,8 +109,9 @@ RUN sed -i 's/^backend.*//g' /opt/conda/lib/python3.6/site-packages/matplotlib/m
 
 RUN jupyter nbextension enable --system --py widgetsnbextension
 
-ADD https://github.com/krallin/tini/releases/download/v0.16.1/tini /usr/bin/tini
-RUN chmod +x /usr/bin/tini
+ADD https://github.com/krallin/tini/releases/download/v0.16.1/tini /usr/local/bin/tini
+RUN chmod +x /usr/local/bin/tini
 
-ENTRYPOINT [ "/usr/bin/tini", "--" ]
+WORKDIR /
+ENTRYPOINT [ "/usr/local/bin/tini", "--" ]
 CMD [ "/bin/bash" ]
